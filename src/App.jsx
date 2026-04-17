@@ -1,120 +1,117 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useState, useEffect } from 'react'
+import { supabase } from './services/api'
+import MovieCard from './components/MovieCard'
+import SeatMap from './components/SeatMap'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [movies, setMovies] = useState([])
+  const [selectedMovie, setSelectedMovie] = useState(null)
+  const [seats, setSeats] = useState([])
+  const [selectedSeat, setSelectedSeat] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // 1. Busca os filmes do Supabase ao carregar a página
+useEffect(() => {
+  async function getMovies() {
+    setLoading(true)
+    // Buscamos os filmes e trazemos a sessão mais próxima de cada um
+    const { data, error } = await supabase
+      .from('filmes')
+      .select(`
+        *,
+        sessoes (
+          dia,
+          horario_inicio
+        )
+      `)
+    
+    if (error) console.error('Erro ao buscar filmes:', error)
+    else setMovies(data)
+    setLoading(false)
+  }
+  getMovies()
+}, [])
+
+  // 2. Busca os assentos da sessão quando um filme é clicado
+ const handleSelectMovie = async (movie) => {
+  setSelectedMovie(movie);
+  setLoading(true);
+
+  // Buscamos os dados daquela View que criamos no SQL
+  const { data, error } = await supabase
+    .from('visualizacao_filme')
+    .select('*')
+    .eq('filme_id', movie.id);
+
+  if (error) {
+    console.error('Erro ao buscar assentos:', error);
+  } else {
+    // Mapeamos para o formato que seu SeatMap espera
+    const formattedSeats = data.map(item => ({
+      id: item.assento_id,
+      fileira: item.fileira,
+      numero: item.numero,
+      status: item.status === 'vendido' ? 'ocupado' : 'disponivel', // Tradução aqui!
+      sessao_id: item.sessao_id
+    }));
+    setSeats(formattedSeats);
+  }
+  setLoading(false);
+};
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app-container">
+      <header className="header">
+        <h1 className="logo">Cinemark<span>Polly</span></h1>
+      </header>
 
-      <div className="ticks"></div>
+      <main className="content">
+        {!selectedMovie ? (
+          /* TELA 1: LISTA DE FILMES */
+          <section className="movie-grid">
+            {movies.map(movie => (
+              <MovieCard 
+                key={movie.id} 
+                movie={movie} 
+                onSelect={() => handleSelectMovie(movie)} 
+              />
+            ))}
+          </section>
+        ) : (
+          /* TELA 2: MAPA DE ASSENTOS */
+          <section className="booking-area">
+            <button className="back-btn" onClick={() => setSelectedMovie(null)}>
+              ← Voltar para Filmes
+            </button>
+            
+            <div className="booking-layout">
+              <div className="seats-section">
+                <h2>{selectedMovie.titulo}</h2>
+                <p className="session-info">Escolha seu lugar (Fileira E é o fundo)</p>
+                <SeatMap 
+                  seats={seats} 
+                  selectedSeat={selectedSeat} 
+                  onSelectSeat={setSelectedSeat} 
+                />
+              </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
+              <div className="summary-section">
+                <h3>Resumo</h3>
+                <p>Filme: <strong>{selectedMovie.titulo}</strong></p>
+                <p>Assento: <strong>{selectedSeat ? `${selectedSeat.fileira}${selectedSeat.numero}` : 'Selecione...'}</strong></p>
+                <button 
+                  className="confirm-btn" 
+                  disabled={!selectedSeat}
+                  onClick={() => alert('Compra realizada!')}
                 >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+                  Confirmar Reserva
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
   )
 }
 

@@ -1,6 +1,17 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/* Estilo extra para os assentos ficarem bonitos */
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 8px;
+}
+
+
 :root {
   --text: #6b6375;
-  --text-h: #08060d;
+  --text-h: #5524cf;
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
