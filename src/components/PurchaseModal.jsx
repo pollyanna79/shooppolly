@@ -12,7 +12,7 @@ const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          
+
           <h2 className="text-2xl font-bold text-white mb-2">Confirmar Reserva?</h2>
           <p className="text-zinc-400 text-sm mb-6">Você está prestes a reservar um lugar para uma experiência incrível.</p>
 
@@ -32,15 +32,18 @@ const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm
           </div>
 
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={onClose}
               className="flex-1 px-4 py-3 rounded-xl bg-zinc-800 text-white font-bold hover:bg-zinc-700 transition-colors"
             >
               Cancelar
             </button>
-            <button 
+
+            <button
               onClick={onConfirm}
-              className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+              // Se você tiver o estado 'loading' passando via props, use-o aqui:
+              // disabled={loading} 
+              className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 shadow-lg shadow-emerald-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirmar
             </button>
