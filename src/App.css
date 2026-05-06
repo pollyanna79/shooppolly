@@ -237,3 +237,42 @@ body::-webkit-scrollbar-thumb {
 .animate-in {
   animation: fadeIn 0.4s ease-out forwards;
 }
+
+/*imagem de fundo com máscara para destacar o centro */
+.min-h-screen {
+  position: relative;
+  min-height: 100vh;
+  background-color: #09090b;
+  /* bg-zinc-950 */
+}
+
+.min-h-screen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  /* Caminho da sua imagem */
+  background-image: url('/pipoca.jpg');
+  background-size: contain;
+  background-repeat: repeat;
+  background-position: center;
+
+  /* Aumentamos um pouco a opacidade para a borda ficar visível */
+  opacity: 0.15;
+
+  /* 
+     EFEITO MOLDURA (Compacto nas bordas):
+     - transparent 70%: O centro fica vazio até quase chegar na borda.
+     - black 100%: A imagem aparece subitamente apenas no finalzinho.
+  */
+  -webkit-mask-image: linear-gradient(to right, black, transparent 20%, transparent 80%, black);
+  mask-image: linear-gradient(to right, black, transparent 20%, transparent 80%, black);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Mantém o conteúdo legível no centro */
+.min-h-screen>* {
+  position: relative;
+  z-index: 1;
+}

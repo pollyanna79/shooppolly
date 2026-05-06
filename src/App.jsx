@@ -3,13 +3,14 @@ import { supabase } from './services/api'
 import MovieCard from './components/MovieCard'
 import SeatMap from './components/SeatMap'
 import PurchaseModal from './components/PurchaseModal'
+import PaymentFlow from './components/PaymentFlow'
 import './App.css'
 
 function App() {
   const [movies, setMovies] = useState([])
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [seats, setSeats] = useState([])
-  const [selectedSeat, setSelectedSeat] = useState(null)
+  const [selectedSeat, setSelectedSeat] = useState([])
   const [loading, setLoading] = useState(true)
   const [sessionDetails, setSessionDetails] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -30,7 +31,7 @@ function App() {
   const handleSelectMovie = async (movie) => {
     setSelectedMovie(movie);
     setLoading(true);
-    setSelectedSeat(null);
+    setSelectedSeat([]);
     setSeats([]);
 
     try {
@@ -91,45 +92,51 @@ function App() {
       setLoading(false);
     }
   };
+  // No App.js, a função que você passa para o SeatMap:
+  const handleSelectSeat = (seat) => {
+    setSelectedSeat(prev => {
+      // Se o assento já estiver no array, remove. Se não, adiciona.
+      const isSelected = prev.some(s => s.id === seat.id);
+      if (isSelected) {
+        return prev.filter(s => s.id !== seat.id);
+      }
+      return [...prev, seat];
+    });
+  };
   const handleConfirmReservation = async () => {
     // Verificações de segurança
-    if (!selectedSeat || !sessionDetails) {
+    if (!selectedSeat.length === 0 || !sessionDetails) {
       alert("Por favor, selecione um assento primeiro.");
       return;
     }
 
     try {
       setLoading(true);
+      // 1. Criar array de objetos para o Supabase
+      const novasReservas = selectedSeat.map(seat => ({
+        sessao_id: sessionDetails.id,
+        assento_id: seat.id,
+        status: 'vendido'
+      }));
 
       // 1. Inserir na tabela public.ingressos
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('ingressos')
-        .insert([
-          {
-            sessao_id: sessionDetails.id, // ID da sessão atual
-            assento_id: selectedSeat.id,  // ID do assento (assento_id que veio da View)
-            status: 'vendido'             // Status padrão conforme seu banco
-            // data_compra é preenchido automaticamente pelo DEFAULT CURRENT_TIMESTAMP
-          }
-        ])
-        .select();
+        .insert(novasReservas);
 
       if (error) throw error;
-
-      // 2. Atualizar o estado local 'seats' para que o assento fique vermelho (ocupado) na hora
+      // 2. Atualizar estado local do mapa
+      const idsSelecionados = selectedSeat.map(s => s.id);
       setSeats(prevRows => prevRows.map(row => ({
         ...row,
         assentos: row.assentos.map(s =>
-          s.id === selectedSeat.id ? { ...s, status: 'ocupado' } : s
+          idsSelecionados.includes(s.id) ? { ...s, status: 'ocupado' } : s
         )
       })));
 
-      // 3. Feedback para o usuário
-      alert(`Sucesso! Assento ${selectedSeat.fileira}${selectedSeat.numero} reservado.`);
-
-      // 4. Fechar modal e limpar seleção
+      alert(`Sucesso! ${selectedSeat.length} assento(s) reservado(s).`);
       setIsModalOpen(false);
-      setSelectedSeat(null);
+      setSelectedSeat([]);
 
     } catch (error) {
       console.error("Erro na reserva:", error);
@@ -199,46 +206,43 @@ function App() {
 
                   <div className="space-y-6 mb-8">
                     {/* Data */}
+                    {/* --- SUBSTITUA A PARTIR DAQUI --- */}
                     <div className="flex flex-col gap-1">
-                      <span className="text-zinc-500 text-xs uppercase tracking-widest font-bold">Data da Sessão</span>
-                      <p className="font-medium">
-                        {sessionDetails ? new Date(sessionDetails.dia).toLocaleDateString('pt-BR') : '--/--/----'}
-                      </p>
-                    </div>
-
-                    {/* Assento Selecionado Card */}
-                    <div className="flex flex-col gap-1">
-                      <span className="text-zinc-500 text-xs uppercase tracking-widest font-bold">Assento Selecionado</span>
-                      <div className={`mt-1 p-5 rounded-2xl border transition-all duration-500 flex justify-between items-center ${selectedSeat
+                      <span className="text-zinc-500 text-xs uppercase tracking-widest font-bold">Assentos Selecionados</span>
+                      <div className={`mt-1 p-5 rounded-2xl border transition-all duration-500 flex justify-between items-center ${selectedSeat.length > 0
                         ? 'bg-yellow-500/10 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.1)]'
                         : 'bg-zinc-950 border-zinc-800'
                         }`}>
                         <span className="text-zinc-500 text-sm font-medium italic">
-                          {selectedSeat ? 'Posição:' : 'Aguardando...'}
+                          {selectedSeat.length > 0 ? 'Posições:' : 'Aguardando...'}
                         </span>
-                        <span className={`text-3xl font-black tracking-tighter ${selectedSeat ? 'text-yellow-500 scale-110' : 'text-zinc-800'} transition-all`}>
-                          {selectedSeat ? `${selectedSeat.fileira}${selectedSeat.numero}` : '--'}
+                        {/* LISTA OS ASSENTOS SEPARADOS POR VÍRGULA */}
+                        <span className={`text-xl font-black tracking-tighter ${selectedSeat.length > 0 ? 'text-yellow-500' : 'text-zinc-800'} transition-all`}>
+                          {selectedSeat.length > 0
+                            ? selectedSeat.map(s => `${s.fileira}${s.numero}`).join(', ')
+                            : '--'}
                         </span>
                       </div>
 
-                      {selectedSeat && (
+                      {selectedSeat.length > 0 && (
                         <p className="text-[10px] text-emerald-500 font-bold mt-2 animate-pulse uppercase tracking-tighter">
-                          ✓ Pronto para reservar
+                          ✓ {selectedSeat.length} assento(s) prontos para reservar
                         </p>
                       )}
                     </div>
                   </div>
 
                   <button
-                    disabled={!selectedSeat || loading}
+                    disabled={selectedSeat.length === 0 || loading}
                     onClick={() => setIsModalOpen(true)}
-                    className={`w-full py-5 rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl ${selectedSeat
+                    className={`w-full py-5 rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl ${selectedSeat.length > 0
                       ? 'bg-yellow-500 text-black hover:bg-yellow-400'
                       : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                       }`}
                   >
-                    {loading ? 'PROCESSANDO...' : 'RESERVAR AGORA'}
+                    {loading ? 'PROCESSANDO...' : `RESERVAR ${selectedSeat.length > 0 ? selectedSeat.length : ''} AGORA`}
                   </button>
+
                 </div>
               </aside>
             </div>
