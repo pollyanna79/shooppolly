@@ -15,12 +15,13 @@ function App() {
   const [sessionDetails, setSessionDetails] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
+  // 1. Carregar filmes ao iniciar
   useEffect(() => {
     async function getMovies() {
       setLoading(true)
       const { data, error } = await supabase
         .from('filmes')
-        .select(`*, sessoes (dia, horario_inicio)`)
+        .select(`*, sessoes (id, dia, horario_inicio)`)
       if (error) console.error('Erro ao buscar filmes:', error)
       else setMovies(data)
       setLoading(false)
@@ -28,11 +29,11 @@ function App() {
     getMovies()
   }, [])
 
+  // 2. Selecionar Filme e Buscar Assentos da View
   const handleSelectMovie = async (movie) => {
     setSelectedMovie(movie);
     setLoading(true);
-    setSelectedSeat([]);
-    setSeats([]);
+    setSelectedSeat([]); // Limpa seleção anterior
 
     try {
       const { data: sessionData } = await supabase
@@ -42,7 +43,10 @@ function App() {
         .limit(1)
         .maybeSingle();
 
-      if (!sessionData) return;
+      if (!sessionData) {
+        setSeats([]);
+        return;
+      }
       setSessionDetails(sessionData);
 
       const { data: seatsData } = await supabase
@@ -51,26 +55,14 @@ function App() {
         .eq('sessao_id', sessionData.id);
 
       if (seatsData) {
-        // DEBUG: Veja no console (F12) o que o banco está enviando
-        console.log("Dados brutos do banco:");
-        console.table(seatsData);
+        const formattedSeats = seatsData.map(item => ({
+          id: item.assento_id,
+          fileira: item.fileira,
+          numero: item.numero,
+          status: item.status === 'ocupado' ? 'ocupado' : 'livre'
+        }));
 
-        const formattedSeats = seatsData.map(item => {
-          // LÓGICA BLINDADA: 
-          // Se o status for 'ocupado' ou 'vendido', ele fica ocupado.
-          // CASO CONTRÁRIO (disponivel, nulo, vazio), ele fica LIVRE.
-          const isActuallyOccupied = item.status === 'ocupado' || item.status === 'vendido';
-
-          return {
-            id: item.assento_id,
-            fileira: item.fileira,
-            numero: item.numero,
-            status: isActuallyOccupied ? 'ocupado' : 'livre', // Aqui garantimos o status
-            sessao_id: item.sessao_id
-          };
-        });
-
-        // Agrupamento por fileiras
+        // Agrupamento por fileiras (Lógica que estava fora da função no seu código)
         const grouped = formattedSeats.reduce((acc, seat) => {
           if (!acc[seat.fileira]) acc[seat.fileira] = [];
           acc[seat.fileira].push(seat);
@@ -92,10 +84,10 @@ function App() {
       setLoading(false);
     }
   };
-  // No App.js, a função que você passa para o SeatMap:
+
+  // 3. Gerenciar seleção de assentos individuais
   const handleSelectSeat = (seat) => {
     setSelectedSeat(prev => {
-      // Se o assento já estiver no array, remove. Se não, adiciona.
       const isSelected = prev.some(s => s.id === seat.id);
       if (isSelected) {
         return prev.filter(s => s.id !== seat.id);
@@ -103,48 +95,54 @@ function App() {
       return [...prev, seat];
     });
   };
-  const handleConfirmReservation = async () => {
-    // Verificações de segurança
-    if (!selectedSeat.length === 0 || !sessionDetails) {
-      alert("Por favor, selecione um assento primeiro.");
-      return;
-    }
 
+  // 4. Confirmar Reserva e Gravar no Banco
+  const handleConfirmReservation = async (dadosDoPagamento) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // 1. Criar array de objetos para o Supabase
+      // Gravar na cinema_compras
+      const { error: compraError } = await supabase
+        .from('cinema_compras')
+        .insert([{
+          id_pedido: dadosDoPagamento.id_pedido,
+          nome: dadosDoPagamento.nome,
+          email: dadosDoPagamento.email,
+          pagamento: dadosDoPagamento.pagamento,
+          status: 'CONCLUÍDO'
+        }]);
+
+      if (compraError) throw compraError;
+
+      // Gravar na tabela ingressos (Crucial para a View mostrar 'ocupado')
       const novasReservas = selectedSeat.map(seat => ({
         sessao_id: sessionDetails.id,
         assento_id: seat.id,
         status: 'vendido'
       }));
 
-      // 1. Inserir na tabela public.ingressos
-      const { error } = await supabase
+      const { error: ingressoError } = await supabase
         .from('ingressos')
         .insert(novasReservas);
 
-      if (error) throw error;
-      // 2. Atualizar estado local do mapa
-      const idsSelecionados = selectedSeat.map(s => s.id);
-      setSeats(prevRows => prevRows.map(row => ({
-        ...row,
-        assentos: row.assentos.map(s =>
-          idsSelecionados.includes(s.id) ? { ...s, status: 'ocupado' } : s
-        )
-      })));
+      if (ingressoError) throw ingressoError;
 
-      alert(`Sucesso! ${selectedSeat.length} assento(s) reservado(s).`);
-      setIsModalOpen(false);
+      // Resetar e recarregar
       setSelectedSeat([]);
+      setIsModalOpen(false);
+
+      // Força a View a ser lida novamente para atualizar as cores
+      await handleSelectMovie(selectedMovie);
+
+      alert("Reserva confirmada com sucesso!");
 
     } catch (error) {
-      console.error("Erro na reserva:", error);
-      alert("Erro ao confirmar reserva: " + error.message);
+      console.error("Erro na gravação:", error);
+      alert("Erro ao gravar: " + error.message);
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-yellow-500/30">
       <header className="py-6 px-8 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-[100]">

@@ -1,119 +1,178 @@
 import React, { useState } from 'react';
 
-
-const PaymentFlow = ({ total, onFinalize, loading }) => {
-    const [step, setStep] = useState('dados'); // dados, metodo, pix, cartao, sucesso
+const PaymentFlow = ({ onFinalize, loading, onClose }) => {
+    const [step, setStep] = useState('dados'); // dados -> metodo -> pix/cartao -> sucesso
     const [method, setMethod] = useState('');
-    const [formData, setFormData] = useState({ nome: '', email: '', cartaoNum: '', cartaoNome: '', validade: '', cvv: '' });
+    const [formData, setFormData] = useState({
+        nome: '',
+        email: '',
+        cartaoNum: '',
+        cartaoNome: '',
+        validade: '',
+        cvv: ''
+    });
 
-    // Simulação de bandeira de cartão
-    const getCardType = (num) => {
-        if (num.startsWith('4')) return 'VISA';
-        if (num.startsWith('5')) return 'MASTERCARD';
-        return 'CARTÃO';
-    };
+    // --- 1. BLOQUEIOS DE DIGITAÇÃO (IMPEDE O ERRO ANTES DE ACONTECER) ---
+    const apenasLetras = (val) => val.replace(/[^a-zA-ZÀ-ÿ\s]/g, ''); // Bloqueia números e símbolos
+    const apenasNumeros = (val) => val.replace(/\D/g, ''); // Bloqueia letras
 
-    const handleFinish = () => {
-        if (step === 'pix' || step === 'cartao') {
-            onFinalize(formData); // Chama a função que salva no Supabase
+    const normalizar = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+
+    // --- 2. VALIDAÇÃO FINAL (A TRAVA MESTRA) ---
+    const handleFinish = async () => {
+        // Validação de E-mail
+        if (!formData.email.includes('@')) {
+            alert("🚨 Digite um e-mail válido.");
+            return;
+        }
+
+        if (method === 'cartao') {
+            const nCliente = normalizar(formData.nome);
+            const nCartao = normalizar(formData.cartaoNome);
+
+            // TRAVA DE NOME DIFERENTE
+            if (nCliente !== nCartao) {
+                alert("🚨 ERRO DE SEGURANÇA:\nO nome no cartão deve ser IDENTICO ao nome do cadastro.");
+                console.error("Divergência:", { cartao: nCartao });
+                return; // Mata a execução aqui
+            }
+
+            // TRAVA DE DATA DE VALIDAD
+            if (formData.validade.length < 5) {
+                alert("🚨 Data de validade incompleta.");
+                return;
+            }
+
+            const [mes, ano] = formData.validade.split('/').map(Number);
+            const agora = new Date();
+            const anoAtual = agora.getFullYear() % 100; // 26
+            const mesAtual = agora.getMonth() + 1;
+
+            if (ano < anoAtual || (ano === anoAtual && mes < mesAtual)) {
+                alert("🚨 CARTÃO VENCIDO: Não podemos processar.");
+                return; // Mata a execução aqui
+            }
+
+            // TRAVA DE NÚMERO
+            if (formData.cartaoNum.length < 16) {
+                alert("🚨 Número do cartão incompleto.");
+                return;
+            }
+        }
+
+        // SE CHEGOU AQUI, PASSOU NAS TRAVAS
+        const dadosCompra = {
+            id_pedido: `PED-${Math.floor(1000 + Math.random() * 9000)}`,
+            nome: formData.nome,
+            email: formData.email,
+            pagamento: method.toUpperCase(),
+            status: 'CONCLUÍDO'
+        };
+
+        try {
+            await onFinalize(dadosCompra);
             setStep('sucesso');
+        } catch (error) {
+            alert("Erro ao salvar no banco.");
         }
     };
 
-    if (step === 'sucesso') {
-        return (
-            <div className="text-center py-8 animate-in zoom-in duration-300">
-                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
-                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-                </div>
-                <h2 className="text-2xl font-black text-white italic">COMPRA CONCLUÍDA!</h2>
-                <p className="text-zinc-400 mt-4 px-6">Obrigado pela preferência. Seus ingressos foram enviados para <b>{formData.email}</b>.</p>
-            </div>
-        );
-    }
-
     return (
-        <div className="p-2">
-            {/* Passo 1: Dados Pessoais */}
+        <div className="text-zinc-100">
+            {/* ETAPA 1: DADOS PESSOAIS */}
             {step === 'dados' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                    <h3 className="text-white font-bold uppercase text-sm tracking-widest border-b border-zinc-800 pb-2">Seus Dados</h3>
-                    <input type="text" placeholder="NOME COMPLETO" className="w-full bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-yellow-500 outline-none" onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
-                    <input type="email" placeholder="E-MAIL PARA RECEBER INGRESSO" className="w-full bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-yellow-500 outline-none" onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-                    <button disabled={!formData.nome || !formData.email} onClick={() => setStep('metodo')} className="w-full bg-yellow-500 text-black font-black py-4 rounded-xl hover:bg-yellow-400 disabled:opacity-50">PRÓXIMO</button>
+                <div className="space-y-4">
+                    <h3 className="font-bold border-b border-zinc-800 pb-2">MEUS DADOS</h3>
+                    <input
+                        type="text" placeholder="NOME COMPLETO (SÓ LETRAS)"
+                        className="w-full bg-zinc-800 p-3 rounded-xl outline-none focus:ring-2 ring-yellow-500"
+                        value={formData.nome}
+                        onChange={(e) => setFormData({ ...formData, nome: apenasLetras(e.target.value) })}
+                    />
+                    <input
+                        type="email" placeholder="E-MAIL"
+                        className="w-full bg-zinc-800 p-3 rounded-xl outline-none focus:ring-2 ring-yellow-500"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value.trim() })}
+                    />
+                    <button
+                        disabled={!formData.nome || !formData.email}
+                        onClick={() => setStep('metodo')}
+                        className="w-full bg-yellow-500 text-black font-bold py-3 rounded-xl disabled:opacity-30"
+                    >
+                        PRÓXIMO
+                    </button>
                 </div>
             )}
 
-            {/* Passo 2: Método de Pagamento */}
+            {/* ETAPA 2: ESCOLHER MÉTODO */}
             {step === 'metodo' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                    <h3 className="text-white font-bold uppercase text-sm tracking-widest border-b border-zinc-800 pb-2">Pagamento: R$ {total.toFixed(2)}</h3>
-                    <button onClick={() => { setMethod('pix'); setStep('pix'); }} className="w-full bg-zinc-800 hover:bg-zinc-700 p-5 rounded-2xl flex items-center gap-4 transition-all border border-transparent hover:border-emerald-500 group">
-                        <div className="w-10 h-10 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center font-black">X</div>
-                        <span className="text-white font-bold uppercase tracking-widest">Pagar com PIX</span>
-                    </button>
-                    <button onClick={() => { setMethod('cartao'); setStep('cartao'); }} className="w-full bg-zinc-800 hover:bg-zinc-700 p-5 rounded-2xl flex items-center gap-4 transition-all border border-transparent hover:border-blue-500">
-                        <div className="w-10 h-10 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center">💳</div>
-                        <span className="text-white font-bold uppercase tracking-widest">Cartão de Crédito</span>
-                    </button>
+                <div className="space-y-4">
+                    <h3 className="font-bold border-b border-zinc-800 pb-2">FORMA DE PAGAMENTO</h3>
+                    <div className="flex gap-2">
+                        <button onClick={() => { setMethod('pix'); setStep('pix'); }} className="flex-1 bg-zinc-800 p-4 rounded-xl border border-zinc-700 hover:border-emerald-500">PIX</button>
+                        <button onClick={() => { setMethod('cartao'); setStep('cartao'); }} className="flex-1 bg-zinc-800 p-4 rounded-xl border border-zinc-700 hover:border-blue-500">CARTÃO</button>
+                    </div>
+                    <button onClick={() => setStep('dados')} className="w-full text-zinc-500 text-sm">Voltar</button>
                 </div>
             )}
 
-            {/* Passo 3: PIX */}
-            {step === 'pix' && (
-                <div className="space-y-6 text-center animate-in fade-in slide-in-from-right-4">
-                    {/* IMAGEM DO QRCODE AQUI */}
-                    <div className="bg-white p-4 rounded-2xl inline-block shadow-xl">
-                        <img
-                            src="/pix.jpg"
-                            alt="QR Code Pix"
-                            className="w-40 h-40 object-contain mx-auto block"
-                            style={{ minWidth: '176px', minHeight: '176px' }}
-                            onLoad={() => console.log("Imagem carregada com sucesso!")}
-                            onError={(e) => {
-                                console.error("Erro ao carregar /public/qrcode.jpg");
-                                e.target.style.display = 'none'; // Esconde a imagem quebrada
-                                e.target.insertAdjacentHTML('afterend', '<div class="text-zinc-400 text-[10px] p-8 border-2 border-dashed border-zinc-200 rounded-lg">QR CODE<br/>NÃO ENCONTRADO<br/>NA PASTA PUBLIC</div>');
+            {/* ETAPA 3: DADOS DO CARTÃO */}
+            {step === 'cartao' && (
+                <div className="space-y-3">
+                    <h3 className="font-bold border-b border-zinc-800 pb-2">DADOS DO CARTÃO</h3>
+                    <input
+                        type="text" placeholder="NÚMERO DO CARTÃO (SÓ NÚMEROS)" maxLength="16"
+                        className="w-full bg-zinc-800 p-3 rounded-xl outline-none"
+                        value={formData.cartaoNum}
+                        onChange={(e) => setFormData({ ...formData, cartaoNum: apenasNumeros(e.target.value) })}
+                    />
+                    <input
+                        type="text" placeholder="NOME IGUAL AO DO CADASTRO"
+                        className="w-full bg-zinc-800 p-3 rounded-xl outline-none uppercase"
+                        value={formData.cartaoNome}
+                        onChange={(e) => setFormData({ ...formData, cartaoNome: apenasLetras(e.target.value) })}
+                    />
+                    <div className="flex gap-2">
+                        <input
+                            type="text" placeholder="MM/AA" maxLength="5"
+                            className="w-1/2 bg-zinc-800 p-3 rounded-xl outline-none"
+                            value={formData.validade}
+                            onChange={(e) => {
+                                let v = apenasNumeros(e.target.value);
+                                if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2, 4);
+                                setFormData({ ...formData, validade: v });
                             }}
                         />
+                        <input
+                            type="text" placeholder="CVV" maxLength="3"
+                            className="w-1/2 bg-zinc-800 p-3 rounded-xl outline-none"
+                            value={formData.cvv}
+                            onChange={(e) => setFormData({ ...formData, cvv: apenasNumeros(e.target.value) })}
+                        />
                     </div>
-
-                    <div className="text-left">
-                        <p className="text-xs text-zinc-500 font-bold mb-2 uppercase tracking-widest text-center">Escaneie ou copie o código</p>
-                        <div
-                            onClick={() => {
-                                navigator.clipboard.writeText("00020126580014BR.GOV.BCB.PIX0136cinemarkpolly-9922-4411-8833-2211520400005303986");
-                                alert("Código copiado!");
-                            }}
-                            className="bg-black/50 p-4 rounded-xl border border-zinc-800 break-all text-[10px] font-mono text-emerald-500 cursor-pointer hover:bg-black/80 active:scale-95 transition-all"
-                        >
-                            00020126580014BR.GOV.BCB.PIX0136cinemarkpolly-9922-4411-8833-2211520400005303986
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={handleFinish}
-                        className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-500 shadow-lg shadow-emerald-900/20"
-                    >
-                        JÁ PAGUEI / FINALIZAR
+                    <button onClick={handleFinish} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">
+                        FINALIZAR PAGAMENTO
                     </button>
+                    <button onClick={() => setStep('metodo')} className="w-full text-zinc-500 text-sm">Voltar</button>
                 </div>
             )}
-            {/* Passo 3: CARTÃO */}
-            {step === 'cartao' && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-right-4">
-                    <div className="relative">
-                        <input type="text" maxLength="16" placeholder="0000 0000 0000 0000" className="w-full bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-blue-500 outline-none" onChange={(e) => setFormData({ ...formData, cartaoNum: e.target.value })} />
-                        <span className="absolute right-3 top-3 text-[10px] font-black text-blue-500 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20 uppercase tracking-tighter">
-                            {getCardType(formData.cartaoNum)}
-                        </span>
+
+            {/* ETAPA PIX */}
+            {step === 'pix' && (
+                <div className="text-center space-y-4">
+                    <div className="bg-white p-4 rounded-xl inline-block">
+                        <img src="/pix.jpg" className="w-40 h-40" alt="Pix" />
                     </div>
-                    <input type="text" placeholder="NOME IMPRESSO NO CARTÃO" className="w-full bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-blue-500 outline-none uppercase" onChange={(e) => setFormData({ ...formData, cartaoNome: e.target.value })} />
-                    <div className="flex gap-3">
-                        <input type="text" maxLength="5" placeholder="MM/AA" className="w-2/3 bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-blue-500 outline-none" onChange={(e) => setFormData({ ...formData, validade: e.target.value })} />
-                        <input type="text" maxLength="3" placeholder="CVV" className="w-1/3 bg-zinc-800 border-zinc-700 rounded-xl p-3 text-white focus:ring-2 ring-blue-500 outline-none" onChange={(e) => setFormData({ ...formData, cvv: e.target.value })} />
-                    </div>
-                    <button onClick={handleFinish} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl hover:bg-blue-500">FINALIZAR PAGAMENTO</button>
+                    <button onClick={handleFinish} className="w-full bg-emerald-600 text-white font-bold py-4 rounded-xl">JÁ PAGUEI</button>
+                </div>
+            )}
+
+            {/* SUCESSO */}
+            {step === 'sucesso' && (
+                <div className="text-center py-10">
+                    <h2 className="text-2xl font-bold text-emerald-500">RESERVA CONCLUÍDA!</h2>
+                    <p className="text-zinc-400 mt-2">Aguarde o redirecionamento...</p>
                 </div>
             )}
         </div>
