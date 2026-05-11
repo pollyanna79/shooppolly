@@ -137,10 +137,35 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
       {step === 'pix' && (
         <div className="space-y-4 text-center">
           <div className="bg-white p-4 rounded-2xl inline-block">
-            <div className="w-32 h-32 bg-zinc-200 flex items-center justify-center text-black text-[10px]">QR CODE PIX</div>
+            {/* Trocamos a div cinza pela imagem real */}
+            <img
+              src="/pix.jpg"
+              alt="QR Code Pix"
+              className="w-48 h-48 object-contain"
+              onError={(e) => {
+                console.error("Erro ao carregar a imagem do Pix");
+                e.target.src = "https://via.placeholder.com/200?text=Erro+ao+Carregar";
+              }}
+            />
           </div>
-          <button onClick={handleFinish} disabled={loading} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl">
+
+          <div className="text-sm text-zinc-400">
+            <p>Escaneie o código acima para pagar</p>
+          </div>
+
+          <button
+            onClick={handleFinish}
+            disabled={loading}
+            className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-700 transition-colors"
+          >
             {loading ? 'PROCESSANDO...' : 'JÁ PAGUEI'}
+          </button>
+
+          <button
+            onClick={() => setStep('metodo')}
+            className="text-zinc-500 text-xs"
+          >
+            Voltar
           </button>
         </div>
       )}

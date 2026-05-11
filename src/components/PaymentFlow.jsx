@@ -172,7 +172,7 @@ const PaymentFlow = ({ onFinalize, loading, onClose }) => {
             {step === 'sucesso' && (
                 <div className="text-center py-10">
                     <h2 className="text-2xl font-bold text-emerald-500">RESERVA CONCLUÍDA!</h2>
-                    <p className="text-zinc-400 mt-2">Aguarde o redirecionamento...</p>
+                    <p className="text-zinc-400 mt-2"> "Você receberá os detalhes da sua compra por e-mail,assim que validarmos o pagamento!"</p>
                 </div>
             )}
         </div>
