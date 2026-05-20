@@ -43,7 +43,7 @@ const CinemaLocation = ({ onBack }) => {
                 <div className="relative">
                     <img src={photos.outside} alt="Fachada" className="rounded-3xl shadow-2xl border border-zinc-800" />
                     <div className="absolute -bottom-6 -right-6 bg-yellow-500 text-black p-6 rounded-2xl font-black rotate-3">
-                        FACHADA PRINCIPAL
+                        Fachada principal
                     </div>
                 </div>
             </section>
