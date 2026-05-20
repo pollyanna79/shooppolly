@@ -219,7 +219,7 @@ function App() {
                         <SeatMap
                           seats={seats}
                           selectedSeat={selectedSeat}
-                          onSelectSeat={handleSelectSeat} // CORREÇÃO: Passa a função que gerencia a seleção corretamente
+                          onSelectSeat={setSelectedSeat} // Mantenha exatamente assim (o gancho direto do useState)
                         />
                       )}
                     </div>
@@ -304,4 +304,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

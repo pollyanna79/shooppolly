@@ -7,15 +7,26 @@ const SeatMap = ({ seats, selectedSeat, onSelectSeat }) => {
 
   // Função interna para gerenciar a adição/remoção (toggle)
   const handleToggleSeat = (seat) => {
-    // Como selectedSeat agora é um Array:
-    const isAlreadySelected = selectedSeat.some((s) => s.id === seat.id);
+    // Se onSelectSeat não for uma função válida, interrompe para não quebrar a tela
+    if (typeof onSelectSeat !== 'function') {
+      console.error("Erro: onSelectSeat não foi passada corretamente para o SeatMap.");
+      return;
+    }
+
+    // Verifica se o array de assentos selecionados existe, se não, assume um array vazio
+    const currentSelected = Array.isArray(selectedSeat) ? selectedSeat : [];
+
+    // Verifica se o assento clicado já está selecionado
+    const isAlreadySelected = currentSelected.some(s => s.id === seat.id);
 
     if (isAlreadySelected) {
-      // Se já está lá, remove
-      onSelectSeat(selectedSeat.filter((s) => s.id !== seat.id));
+      // Se já estava selecionado, remove ele da lista
+      const updatedSeats = currentSelected.filter(s => s.id !== seat.id);
+      onSelectSeat(updatedSeats);
     } else {
-      // Se não está, adiciona ao array existente
-      onSelectSeat([...selectedSeat, seat]);
+      // Se não estava selecionado, adiciona ele na lista
+      const updatedSeats = [...currentSelected, seat];
+      onSelectSeat(updatedSeats);
     }
   };
 
