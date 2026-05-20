@@ -3,9 +3,8 @@ import { supabase } from './services/api'
 import MovieCard from './components/MovieCard'
 import SeatMap from './components/SeatMap'
 import PurchaseModal from './components/PurchaseModal'
-import PaymentFlow from './components/PaymentFlow'
 import Footer from './components/Footer'
-import CinemaLocation from './components/CinemaLocation';
+import CinemaLocation from './components/CinemaLocation'
 import './App.css'
 
 function App() {
@@ -16,7 +15,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [sessionDetails, setSessionDetails] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [viewLocation, setViewLocation] = useState(false);
+  const [viewLocation, setViewLocation] = useState(false)
 
   // 1. Carregar filmes ao iniciar
   useEffect(() => {
@@ -34,9 +33,9 @@ function App() {
 
   // 2. Selecionar Filme e Buscar Assentos da View
   const handleSelectMovie = async (movie) => {
-    setSelectedMovie(movie);
-    setLoading(true);
-    setSelectedSeat([]); // Limpa seleção anterior
+    setSelectedMovie(movie)
+    setLoading(true)
+    setSelectedSeat([]) // Limpa seleção anterior
 
     try {
       const { data: sessionData } = await supabase
@@ -44,120 +43,128 @@ function App() {
         .select(`id, dia, horario_inicio, salas(nome)`)
         .eq('filme_id', movie.id)
         .limit(1)
-        .maybeSingle();
+        .maybeSingle()
 
       if (!sessionData) {
-        setSeats([]);
-        return;
+        setSeats([])
+        setLoading(false) // CORREÇÃO: Desativa o loading se não houver sessão
+        return
       }
-      setSessionDetails(sessionData);
+      setSessionDetails(sessionData)
 
-      const { data: seatsData } = await supabase
+      const { data: seatsData, error: seatsError } = await supabase
         .from('visualizacao_filme')
         .select('*')
-        .eq('sessao_id', sessionData.id);
+        .eq('sessao_id', sessionData.id)
 
-      if (seatsData) {
-        const formattedSeats = seatsData.map(item => ({
-          id: item.assento_id,
-          fileira: item.fileira,
-          numero: item.numero,
-          status: item.status === 'ocupado' ? 'ocupado' : 'livre'
-        }));
+      if (seatsError) {
+        console.error('Erro do Supabase ao buscar assentos:', seatsError)
+        setLoading(false) // CORREÇÃO: Desativa o loading em caso de erro
+        return
+      }
 
-        // Agrupamento por fileiras (Lógica que estava fora da função no seu código)
+      if (seatsData && seatsData.length > 0) {
+        const formattedSeats = seatsData.map((item) => {
+          const assentoId = item.id || item.assento_id
+          const fileiraLetra = item.fileira ? String(item.fileira).trim().toUpperCase() : '?'
+
+          return {
+            id: assentoId,
+            fileira: fileiraLetra,
+            numero: Number(item.numero),
+            status: String(item.status).toLowerCase() === 'ocupado' ? 'ocupado' : 'livre',
+          }
+        })
+
+        // Agrupamento por fileiras seguro
         const grouped = formattedSeats.reduce((acc, seat) => {
-          if (!acc[seat.fileira]) acc[seat.fileira] = [];
-          acc[seat.fileira].push(seat);
-          return acc;
-        }, {});
+          if (!acc[seat.fileira]) acc[seat.fileira] = []
+          acc[seat.fileira].push(seat)
+          return acc
+        }, {})
 
         const rowsArray = Object.keys(grouped)
           .sort((a, b) => b.localeCompare(a))
-          .map(label => ({
+          .map((label) => ({
             letra: label,
-            assentos: grouped[label].sort((a, b) => a.numero - b.numero)
-          }));
+            assentos: grouped[label].sort((a, b) => a.numero - b.numero),
+          }))
 
-        setSeats(rowsArray);
+        setSeats(rowsArray)
+      } else {
+        console.warn(`A view 'visualizacao_filme' não retornou assentos para a sessão: ${sessionData.id}`)
+        setSeats([])
       }
-    } catch (error) {
-      console.error("Erro ao carregar mapa:", error);
+    } catch (err) {
+      console.error('Erro inesperado:', err)
     } finally {
-      setLoading(false);
+      setLoading(false) // CORREÇÃO: Garante que o loading termine aqui
     }
-  };
+  } // CORREÇÃO: Fechamento da chave da função handleSelectMovie que estava faltando!
 
   // 3. Gerenciar seleção de assentos individuais
   const handleSelectSeat = (seat) => {
-    setSelectedSeat(prev => {
-      const isSelected = prev.some(s => s.id === seat.id);
+    setSelectedSeat((prev) => {
+      const isSelected = prev.some((s) => s.id === seat.id)
       if (isSelected) {
-        return prev.filter(s => s.id !== seat.id);
+        return prev.filter((s) => s.id !== seat.id)
       }
-      return [...prev, seat];
-    });
-  };
+      return [...prev, seat]
+    })
+  }
 
   // 4. Confirmar Reserva e Gravar no Banco
   const handleConfirmReservation = async (dadosDoPagamento) => {
-    setLoading(true);
+    setLoading(true)
     try {
       // Gravar na cinema_compras
-      const { error: compraError } = await supabase
-        .from('cinema_compras')
-        .insert([{
+      const { error: compraError } = await supabase.from('cinema_compras').insert([
+        {
           id_pedido: dadosDoPagamento.id_pedido,
           nome: dadosDoPagamento.nome,
           email: dadosDoPagamento.email,
           pagamento: dadosDoPagamento.pagamento,
-          status: 'CONCLUÍDO'
-        }]);
+          status: 'CONCLUÍDO',
+        },
+      ])
 
-      if (compraError) throw compraError;
+      if (compraError) throw compraError
 
-      // Gravar na tabela ingressos (Crucial para a View mostrar 'ocupado')
-      const novasReservas = selectedSeat.map(seat => ({
+      // Gravar na tabela ingressos
+      const novasReservas = selectedSeat.map((seat) => ({
         sessao_id: sessionDetails.id,
         assento_id: seat.id,
-        status: 'vendido'
-      }));
+        status: 'vendido',
+      }))
 
-      const { error: ingressoError } = await supabase
-        .from('ingressos')
-        .insert(novasReservas);
+      const { error: ingressoError } = await supabase.from('ingressos').insert(novasReservas)
 
-      if (ingressoError) throw ingressoError;
+      if (ingressoError) throw ingressoError
 
-      // Resetar e recarregar
-      setSelectedSeat([]);
-      setIsModalOpen(false);
+      setSelectedSeat([])
+      setIsModalOpen(false)
 
-      // Força a View a ser lida novamente para atualizar as cores
-      await handleSelectMovie(selectedMovie);
-
-      alert("Reserva confirmada com sucesso!");
-
+      // Atualiza o mapa de assentos com os novos assentos ocupados
+      await handleSelectMovie(selectedMovie)
+      alert('Reserva confirmada com sucesso!')
     } catch (error) {
-      console.error("Erro na gravação:", error);
-      alert("Erro ao gravar: " + error.message);
+      console.error('Erro na gravação:', error)
+      alert('Erro ao gravar: ' + error.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-yellow-500/30">
-
       {/* HEADER */}
       <header className="py-6 px-8 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-[100]">
         <h1
           className="text-3xl font-black tracking-tighter cursor-pointer"
           onClick={() => {
-            setViewLocation(false);
-            setSelectedMovie(null);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setViewLocation(false)
+            setSelectedMovie(null)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
         >
           CINEMARK<span className="text-yellow-500 italic">POLLY</span>
@@ -166,20 +173,17 @@ function App() {
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="max-w-7xl mx-auto p-4 sm:p-8">
-
-        {/* 1. SE estiver vendo a localização */}
         {viewLocation ? (
           <CinemaLocation onBack={() => setViewLocation(false)} />
         ) : (
-          /* 2. CASO CONTRÁRIO (Lógica de Filmes/Assentos) */
           <>
             {!selectedMovie ? (
               /* LISTA DE FILMES */
               <section className="animate-in fade-in zoom-in-95 duration-500">
                 <h2 className="text-2xl font-bold mb-8 border-l-4 border-yellow-500 pl-4">Filmes em Cartaz</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                  {movies.map(movie => (
-                    <MovieCard key={movie.id} movie={movie} onSelect={() => setSelectedMovie(movie)} />
+                  {movies.map((movie) => (
+                    <MovieCard key={movie.id} movie={movie} onSelect={() => handleSelectMovie(movie)} />
                   ))}
                 </div>
               </section>
@@ -194,7 +198,6 @@ function App() {
                 </button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-
                   {/* LADO ESQUERDO: MAPA */}
                   <div className="lg:col-span-8 w-full order-2 lg:order-1">
                     <div className="mb-8">
@@ -210,11 +213,15 @@ function App() {
                     </div>
 
                     <div className="relative z-10">
-                      <SeatMap
-                        seats={seats}
-                        selectedSeat={selectedSeat}
-                        onSelectSeat={setSelectedSeat}
-                      />
+                      {loading ? (
+                        <div className="text-center py-20 text-zinc-500 animate-pulse">Carregando mapa de assentos...</div>
+                      ) : (
+                        <SeatMap
+                          seats={seats}
+                          selectedSeat={selectedSeat}
+                          onSelectSeat={handleSelectSeat} // CORREÇÃO: Passa a função que gerencia a seleção corretamente
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -229,16 +236,21 @@ function App() {
                       <div className="space-y-6 mb-8">
                         <div className="flex flex-col gap-1">
                           <span className="text-zinc-500 text-xs uppercase tracking-widest font-bold">Assentos Selecionados</span>
-                          <div className={`mt-1 p-5 rounded-2xl border transition-all duration-500 flex justify-between items-center ${selectedSeat.length > 0
+                          <div
+                            className={`mt-1 p-5 rounded-2xl border transition-all duration-500 flex justify-between items-center ${selectedSeat.length > 0
                               ? 'bg-yellow-500/10 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.1)]'
                               : 'bg-zinc-950 border-zinc-800'
-                            }`}>
+                              }`}
+                          >
                             <span className="text-zinc-500 text-sm font-medium italic">
                               {selectedSeat.length > 0 ? 'Posições:' : 'Aguardando...'}
                             </span>
-                            <span className={`text-xl font-black tracking-tighter ${selectedSeat.length > 0 ? 'text-yellow-500' : 'text-zinc-800'} transition-all`}>
+                            <span
+                              className={`text-xl font-black tracking-tighter ${selectedSeat.length > 0 ? 'text-yellow-500' : 'text-zinc-800'
+                                } transition-all`}
+                            >
                               {selectedSeat.length > 0
-                                ? selectedSeat.map(s => `${s.fileira}${s.numero}`).join(', ')
+                                ? selectedSeat.map((s) => `${s.fileira}${s.numero}`).join(', ')
                                 : '--'}
                             </span>
                           </div>
@@ -255,8 +267,8 @@ function App() {
                         disabled={selectedSeat.length === 0 || loading}
                         onClick={() => setIsModalOpen(true)}
                         className={`w-full py-5 rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl ${selectedSeat.length > 0
-                            ? 'bg-yellow-500 text-black hover:bg-yellow-400'
-                            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                          ? 'bg-yellow-500 text-black hover:bg-yellow-400'
+                          : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                           }`}
                       >
                         {loading ? 'PROCESSANDO...' : `RESERVAR ${selectedSeat.length > 0 ? selectedSeat.length : ''} AGORA`}
@@ -281,13 +293,15 @@ function App() {
       />
 
       {/* FOOTER */}
-      <Footer onShowLocation={() => {
-        setViewLocation(true);
-        setSelectedMovie(null); // Fecha o filme se estiver aberto
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }} />
+      <Footer
+        onShowLocation={() => {
+          setViewLocation(true)
+          setSelectedMovie(null)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
