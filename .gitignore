@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Ignorar as minhas variaveis de ambiente com o caminho do banco e a senha
+.env
+.env.local
+.env.production
+.env.development
