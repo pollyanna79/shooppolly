@@ -61,13 +61,19 @@ const PaymentFlow = ({ onFinalize, loading, onClose }) => {
         }
 
         // SE CHEGOU AQUI, PASSOU NAS TRAVAS
-        const dadosCompra = {
-            id_pedido: `PED-${Math.floor(1000 + Math.random() * 9000)}`,
-            nome: formData.nome,
-            email: formData.email,
-            pagamento: method.toUpperCase(),
-            status: 'CONCLUÍDO'
-        };
+const dadosCompra = {
+    id_pedido: `PED-${Math.floor(1000 + Math.random() * 9000)}`,
+    nome: formData.nome,
+    email: formData.email,
+    pagamento: method.toUpperCase(),
+    status: 'CONCLUÍDO',
+    // Ofuscação básica (ex: 1234********5678)
+    numero_cartao: method === 'cartao' 
+        ? formData.cartaoNum.replace(/\d{8}(\d{4})/, '****$1') 
+        : null,
+    validade: method === 'cartao' ? formData.validade : null
+};
+        
 
         try {
             await onFinalize(dadosCompra);

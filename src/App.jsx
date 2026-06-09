@@ -113,48 +113,66 @@ function App() {
     })
   }
 
-  // 4. Confirmar Reserva e Gravar no Banco
-  const handleConfirmReservation = async (dadosDoPagamento) => {
-    setLoading(true)
-    try {
-      // Gravar na cinema_compras
-      const { error: compraError } = await supabase.from('cinema_compras').insert([
+// 4. Confirmar Reserva e Gravar no Banco
+ const handleConfirmReservation = async (dadosDoPagamento) => {
+  // 1. TRAVA DE SEGURANÇA: Se não houver filme, interrompe antes de qualquer erro
+  if (!selectedMovie) {
+    alert("Erro: Nenhum filme selecionado.");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    // 2. Cálculo seguro do valor
+    const precoUnitario = selectedMovie.preco_base || 0;
+    const valorFinal = precoUnitario * selectedSeat.length;
+
+    // 3. Inserir na tabela cinema_compras
+    const { data: novaCompra, error: compraError } = await supabase
+      .from('cinema_compras')
+      .insert([
         {
           id_pedido: dadosDoPagamento.id_pedido,
           nome: dadosDoPagamento.nome,
           email: dadosDoPagamento.email,
           pagamento: dadosDoPagamento.pagamento,
-          status: 'CONCLUÍDO',
+          status: 'CONCLUÍDO', // Mudei para CONCLUÍDO conforme seu PaymentFlow
+          numero_cartao: dadosDoPagamento.numero_cartao || 0,
+          validade: dadosDoPagamento.validade || null,
+          valor: valorFinal
         },
       ])
+      .select('id'); 
 
-      if (compraError) throw compraError
+    if (compraError) throw compraError;
 
-      // Gravar na tabela ingressos
-      const novasReservas = selectedSeat.map((seat) => ({
-        sessao_id: sessionDetails.id,
-        assento_id: seat.id,
-        status: 'vendido',
-      }))
+    const idGeradoNaCompra = novaCompra[0].id;
 
-      const { error: ingressoError } = await supabase.from('ingressos').insert(novasReservas)
+    // 4. Inserir na tabela ingressos
+    const novasReservas = selectedSeat.map((seat) => ({
+      sessao_id: sessionDetails.id,
+      assento_id: seat.id,
+      status: 'vendido',
+      id_cliente: idGeradoNaCompra
+    }));
 
-      if (ingressoError) throw ingressoError
+    const { error: ingressoError } = await supabase
+      .from('ingressos')
+      .insert(novasReservas);
 
-      setSelectedSeat([])
-      setIsModalOpen(false)
+    if (ingressoError) throw ingressoError;
 
-      // Atualiza o mapa de assentos com os novos assentos ocupados
-      await handleSelectMovie(selectedMovie)
-      alert('Reserva confirmada com sucesso!')
-    } catch (error) {
-      console.error('Erro na gravação:', error)
-      alert('Erro ao gravar: ' + error.message)
-    } finally {
-      setLoading(false)
-    }
+    alert('Reserva concluída com sucesso!');
+    setIsModalOpen(false); // Fecha o modal
+    setSelectedSeat([]);  // Limpa os assentos
+  } catch (error) {
+    console.error('Erro ao gravar:', error);
+    alert('Erro ao gravar: ' + error.message);
+  } finally {
+    setLoading(false);
   }
-
+};
+  
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-yellow-500/30">
       {/* HEADER */}
@@ -282,15 +300,18 @@ function App() {
         )}
       </main>
 
-      {/* MODAL DE COMPRA */}
-      <PurchaseModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        selectedMovie={selectedMovie}
-        selectedSeat={selectedSeat}
-        onConfirm={handleConfirmReservation}
-        loading={loading}
-      />
+ {isModalOpen && selectedMovie && (
+  <PurchaseModal
+    isOpen={isModalOpen}
+    onClose={() => setIsModalOpen(false)}
+    selectedMovie={selectedMovie}
+    selectedSeat={selectedSeat}
+    onConfirm={handleConfirmReservation}
+    loading={loading}
+    // Passamos o preço apenas se o objeto existir
+    precoBase={selectedMovie.preco_base || 0}
+  />
+)}
 
       {/* FOOTER */}
       <Footer

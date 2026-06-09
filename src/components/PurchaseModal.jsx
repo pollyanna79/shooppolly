@@ -224,13 +224,15 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
 };
 
 // 2. COMPONENTE PRINCIPAL DO MODAL
-const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm, loading }) => {
+const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm, loading, precoBase }) => {
   const [showPayment, setShowPayment] = useState(false);
 
   if (!isOpen) return null;
 
   const seatsArray = Array.isArray(selectedSeat) ? selectedSeat : [];
-  const valorTotal = seatsArray.length * 25.00;
+  
+// usamos o precoBase que vem do App.jsx
+  const valorTotal = seatsArray.length * (precoBase || 0);
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
