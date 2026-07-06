@@ -3,6 +3,7 @@ import { supabase } from './services/api'
 import MovieCard from './components/MovieCard'
 import SeatMap from './components/SeatMap'
 import PurchaseModal from './components/PurchaseModal'
+import OrdersModal from './components/OrdersModal'
 import Footer from './components/Footer'
 import CinemaLocation from './components/CinemaLocation'
 import './App.css'
@@ -16,6 +17,7 @@ function App() {
   const [sessionDetails, setSessionDetails] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [viewLocation, setViewLocation] = useState(false)
+  const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false)
 
   // 1. Carregar filmes ao iniciar
   useEffect(() => {
@@ -176,7 +178,7 @@ function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-yellow-500/30">
       {/* HEADER */}
-      <header className="py-6 px-8 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-[100]">
+      <header className="py-6 px-8 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-[100] flex justify-between items-center">
         <h1
           className="text-3xl font-black tracking-tighter cursor-pointer"
           onClick={() => {
@@ -187,6 +189,12 @@ function App() {
         >
           CINEMARK<span className="text-yellow-500 italic">POLLY</span>
         </h1>
+        <button 
+    onClick={() => setIsOrdersModalOpen(true)}
+    className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-lg transition-all active:scale-95"
+  >
+    Meus Pedidos
+  </button>
       </header>
 
       {/* CONTEÚDO PRINCIPAL */}
@@ -312,7 +320,11 @@ function App() {
     precoBase={selectedMovie.preco_base || 0}
   />
 )}
-
+{/* Botão pedidos */}
+<OrdersModal 
+  isOpen={isOrdersModalOpen} 
+  onClose={() => setIsOrdersModalOpen(false)} 
+/>
       {/* FOOTER */}
       <Footer
         onShowLocation={() => {
