@@ -42,5 +42,5 @@ const MovieCard = ({ movie, onSelect }) => {
   );
 };
 
-// ESSA LINHA É A MAIS IMPORTANTE:
+
 export default MovieCard;
