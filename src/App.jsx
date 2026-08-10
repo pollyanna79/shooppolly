@@ -49,7 +49,7 @@ function App() {
 
       if (!sessionData) {
         setSeats([])
-        setLoading(false) // CORREÇÃO: Desativa o loading se não houver sessão
+        setLoading(false) // Desativa o loading se não houver sessão
         return
       }
       setSessionDetails(sessionData)
@@ -61,7 +61,7 @@ function App() {
 
       if (seatsError) {
         console.error('Erro do Supabase ao buscar assentos:', seatsError)
-        setLoading(false) // CORREÇÃO: Desativa o loading em caso de erro
+        setLoading(false) //  Desativa o loading em caso de erro
         return
       }
 
@@ -225,7 +225,7 @@ function App() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
                   {/* LADO ESQUERDO: MAPA */}
-                  <div className="lg:col-span-8 w-full order-2 lg:order-1">
+                  <div className="lg:col-span-8 w-full">
                     <div className="mb-8">
                       <h2 className="text-4xl font-black uppercase tracking-tight">{selectedMovie.titulo}</h2>
                       <div className="flex gap-4 mt-2">
@@ -252,7 +252,7 @@ function App() {
                   </div>
 
                   {/* LADO DIREITO: RESUMO */}
-                  <aside className="lg:col-span-4 order-1 lg:order-2 lg:sticky lg:top-32 z-20">
+                  <aside className="lg:col-span-4 lg:sticky lg:top-32 z-20">
                     <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-2xl shadow-black/50">
                       <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                         <span className="w-2 h-6 bg-yellow-500 rounded-full"></span>
