@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 // 1. COMPONENTE DE PAGAMENTO COM AS TRAVAS ATIVAS
-const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
+const PaymentFlow = ({ total, onFinalize, loading, onClose, onBack }) => {
   const [step, setStep] = useState('dados');
   const [method, setMethod] = useState('');
   const [formData, setFormData] = useState({
@@ -22,6 +22,8 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
     if (num?.startsWith('5')) return 'MASTERCARD';
     return 'CARTÃO';
   };
+
+
 
   const handleFinish = async () => {
     // --- INÍCIO DAS TRAVAS DE SEGURANÇA ---
@@ -95,6 +97,7 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
 
   return (
     <div className="p-2">
+     
       {step === 'dados' && (
         <div className="space-y-4">
           <h3 className="text-white font-bold text-sm tracking-widest border-b border-zinc-800 pb-2">Seus Dados</h3>
@@ -135,13 +138,13 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
       )}
 
       {step === 'pix' && (
-        <div className="space-y-4 text-center">
-          <div className="bg-white p-4 rounded-2xl inline-block">
+        <div className="space-y-2 text-center flex flex-col items-center">
+          <div className="bg-white p-3 rounded-2xl inline-block shadow-md">
             {/* Trocamos a div cinza pela imagem real */}
             <img
               src="/pix.jpg"
               alt="QR Code Pix"
-              className="w-48 h-48 object-contain"
+              className="w-36 h-36 sm:w-44 sm:h-44 object-contain"
               onError={(e) => {
                 console.error("Erro ao carregar a imagem do Pix");
                 e.target.src = "https://via.placeholder.com/200?text=Erro+ao+Carregar";
@@ -149,21 +152,21 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
             />
           </div>
 
-          <div className="text-sm text-zinc-400">
+          <div className="text-xs sm:text-sm text-zinc-400">
             <p>Escaneie o código acima para pagar</p>
           </div>
 
           <button
             onClick={handleFinish}
             disabled={loading}
-            className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-700 transition-colors"
+            className="w-full bg-emerald-600 text-white font-black py-3 sm:py-4 rounded-xl hover:bg-emerald-700 transition-colors text-sm sm:text-base mt-2"
           >
             {loading ? 'PROCESSANDO...' : 'JÁ PAGUEI'}
           </button>
 
           <button
             onClick={() => setStep('metodo')}
-            className="text-zinc-500 text-xs"
+            className="text-zinc-500 text-xs pt-1 hover:text-zinc-300 transition"
           >
             Voltar
           </button>
@@ -225,21 +228,24 @@ const PaymentFlow = ({ total, onFinalize, loading, onClose }) => {
 
 // 2. COMPONENTE PRINCIPAL DO MODAL
 const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm, loading, precoBase }) => {
-  const [showPayment, setShowPayment] = useState(false);
+  const [stage, setStage] = useState('summary');
 
   if (!isOpen) return null;
 
   const seatsArray = Array.isArray(selectedSeat) ? selectedSeat : [];
-  
-// usamos o precoBase que vem do App.jsx
   const valorTotal = seatsArray.length * (precoBase || 0);
 
+  const handleFinalize = async (dadosCompra) => {
+    await onConfirm(dadosCompra);
+    setStage('success');
+  };
+
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl">
-        <div className="p-8">
-          {!showPayment ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4">
+    <div className="fixed inset-0 z-[150] flex items-start sm:items-center justify-center p-4 pt-8 sm:pt-4 bg-black/90 backdrop-blur-md">
+      <div className="relative bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl min-h-[24rem]">
+        <div className={`absolute inset-0 transition-all duration-300 ${stage === 'summary' ? 'opacity-100 z-20' : 'opacity-0 pointer-events-none z-10'}`}>
+          <div className="p-8 h-full flex flex-col justify-between">
+            <div>
               <h2 className="text-2xl font-black text-center text-white italic mb-6 uppercase tracking-tighter">Resumo do Pedido</h2>
               <div className="bg-black/40 rounded-3xl p-6 mb-8 border border-white/5 space-y-4">
                 <div className="flex justify-between items-center text-sm">
@@ -255,19 +261,46 @@ const PurchaseModal = ({ isOpen, onClose, selectedMovie, selectedSeat, onConfirm
                   <span className="text-2xl font-black text-emerald-500">R$ {valorTotal.toFixed(2)}</span>
                 </div>
               </div>
-              <div className="flex gap-4">
-                <button onClick={onClose} className="flex-1 py-4 text-zinc-500 font-bold">CANCELAR</button>
-                <button onClick={() => setShowPayment(true)} className="flex-[2] bg-yellow-500 text-black font-black py-4 rounded-2xl">AVANÇAR</button>
-              </div>
             </div>
-          ) : (
-            <PaymentFlow
-              total={valorTotal}
-              loading={loading}
-              onFinalize={onConfirm}
-              onClose={onClose}
-            />
-          )}
+            <div className="flex gap-4 flex-col sm:flex-row">
+              <button onClick={onClose} className="flex-1 py-4 rounded-2xl border border-zinc-700 text-zinc-400 font-bold hover:border-zinc-500 transition">
+                Escolher outro assento
+              </button>
+              <button onClick={() => setStage('payment')} className="flex-1 bg-yellow-500 text-black font-black py-4 rounded-2xl hover:bg-yellow-400 transition">
+                RESERVAR AGORA
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className={`absolute inset-0 transition-all duration-300 ${stage === 'payment' ? 'opacity-100 z-20' : 'opacity-0 pointer-events-none z-10'}`}>
+          <div className="p-8 h-full flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <button onClick={() => setStage('summary')} className="text-zinc-400 text-xs hover:text-zinc-200 transition">Voltar ao resumo</button>
+                <span className="text-zinc-500 text-[10px] uppercase tracking-widest">Pagamento</span>
+              </div>
+              <PaymentFlow
+                total={valorTotal}
+                loading={loading}
+                onFinalize={handleFinalize}
+                onClose={onClose}
+                onBack={() => setStage('summary')}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className={`absolute inset-0 transition-all duration-300 ${stage === 'success' ? 'opacity-100 z-20' : 'opacity-0 pointer-events-none z-10'}`}>
+          <div className="p-8 h-full flex flex-col justify-center items-center text-center">
+            <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-black text-white italic">COMPRA CONCLUÍDA!</h2>
+            <p className="text-zinc-400 mt-4 px-6">Obrigado! O pedido foi registrado com sucesso.</p>
+          </div>
         </div>
       </div>
     </div>
